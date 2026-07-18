@@ -1,65 +1,60 @@
 package com.nekotune.battlemusic;
 
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.slf4j.Logger;
+
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.DataResult;
 import com.nekotune.battlemusic.compat.AetherCompat;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
-import net.minecraft.client.sounds.SoundManager;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.sounds.SoundEvent;
 import net.minecraft.sounds.SoundSource;
-import net.minecraft.world.entity.*;
+import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.entity.NeutralMob;
 import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.targeting.TargetingConditions;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.common.MinecraftForge;
-import net.minecraftforge.event.RegisterCommandsEvent;
-import net.minecraftforge.event.TickEvent;
-import net.minecraftforge.event.entity.living.LivingEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
-import net.minecraftforge.eventbus.api.IEventBus;
-import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.LogicalSide;
-import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.ModLoadingContext;
-import net.minecraftforge.fml.common.Mod;
-import net.minecraftforge.fml.config.ModConfig;
-import net.minecraftforge.fml.event.lifecycle.FMLClientSetupEvent;
-import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
-import net.minecraftforge.registries.ForgeRegistries;
-import org.slf4j.Logger;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
+import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
+import net.neoforged.fml.ModContainer;
+import net.neoforged.fml.ModList;
+import net.neoforged.fml.event.lifecycle.FMLClientSetupEvent;
 
 @Mod(BattleMusic.MOD_ID)
-public class BattleMusic
-{
+public class BattleMusic {
     public static final String MOD_ID = "battlemusic";
     public static final Logger LOGGER = LogUtils.getLogger();
+
     public static final float VOLUME_REDUCTION = 2f;
     public static final double MAX_SONG_RANGE = 256D;
+    public static final Set<Mob> QUEUED_TO_PLAY = new HashSet<>();
     public static BattleMusicInstance playing = null;
     private static float volume = 1f;
-    public static ArrayList<Mob> validEntities = new ArrayList<>();
 
-    public BattleMusic() {
-        FMLJavaModLoadingContext.get().getModEventBus().addListener(this::onClientSetup);
+    public BattleMusic(IEventBus modEventBus, ModContainer modContainer) {
+        // Register setup events
+        modEventBus.addListener(this::onClientSetup);
 
-        IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
-        ModSounds.register(modEventBus);
+        BMSounds.register(modEventBus);
 
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ModConfigs.SPEC, MOD_ID + "-client.toml");
-
-        MinecraftForge.EVENT_BUS.register(this);
+        // Register our mod's BMConfigpec so that FML can create and load the config file for us
+        modContainer.registerConfig(ModConfig.Type.COMMON, BMConfig.SPEC);
     }
 
     private void onClientSetup(FMLClientSetupEvent event) {
         updateEntitySoundData();
-        setVolume(ModConfigs.VOLUME.get().floatValue());
+        setVolume(BMConfig.VOLUME.get().floatValue());
     }
 
     // Static hashmap of what entities play what sounds
@@ -75,7 +70,7 @@ public class BattleMusic
     protected static final HashMap<EntityType<?>, EntitySoundData> ENTITY_SOUND_DATA = new HashMap<>();
     public static void updateEntitySoundData() {
         ENTITY_SOUND_DATA.clear();
-        List<? extends String> entityDataStrings = ModConfigs.ENTITIES_SONGS.get();
+        List<? extends String> entityDataStrings = BMConfig.ENTITIES_SONGS.get();
         final String ERROR_MSG = "Error loading entity music data from battlemusic config: ";
         for (String entityDataString : entityDataStrings) {
             EntityType<?> entityType = null;
@@ -85,7 +80,7 @@ public class BattleMusic
             DataResult<ResourceLocation> weakEntityResource = ResourceLocation.read(entityString);
             if (weakEntityResource.result().isPresent()) {
                 ResourceLocation resource = weakEntityResource.getOrThrow();
-                entityType = ForgeRegistries.ENTITY_TYPES.getValue(resource);
+                entityType = BuiltInRegistries.ENTITY_TYPE.get(resource);
             }
             if (entityType == null || entityType == EntityType.PIG) {
                 LOGGER.warn(ERROR_MSG + "Skipping invalid entity ID \"{}\" (You can ignore this warning)", entityString);
@@ -96,7 +91,7 @@ public class BattleMusic
             DataResult<ResourceLocation> weakSoundResource = ResourceLocation.read(soundString);
             if (weakSoundResource.result().isPresent()) {
                 ResourceLocation resource = weakSoundResource.getOrThrow();
-                soundEvent = ForgeRegistries.SOUND_EVENTS.getValue(resource);
+                soundEvent = BuiltInRegistries.SOUND_EVENT.get(resource);
             }
             if (soundEvent == null) {
                 LOGGER.error(ERROR_MSG + "Invalid sound ID \"{}\" in line \"{}\", skipping", soundString, entityDataString);
@@ -115,20 +110,21 @@ public class BattleMusic
             ENTITY_SOUND_DATA.put(entityType, new EntitySoundData(soundEvent, priority));
         }
 
-        String defaultSongString = ModConfigs.DEFAULT_SONG.get();
+        String defaultSongString = BMConfig.DEFAULT_SONG.get();
         if (!defaultSongString.isEmpty()) {
             SoundEvent defaultSong = null;
             DataResult<ResourceLocation> weakDefaultSongResource = ResourceLocation.read(defaultSongString);
             if (weakDefaultSongResource.result().isPresent()) {
                 ResourceLocation resource = weakDefaultSongResource.getOrThrow();
-                defaultSong = ForgeRegistries.SOUND_EVENTS.getValue(resource);
+                defaultSong = BuiltInRegistries.SOUND_EVENT.get(resource);
             }
             if (defaultSong == null) {
                 LOGGER.error(ERROR_MSG + "Invalid default song sound ID \"{}\"", defaultSongString);
             } else {
-                for (EntityType<?> e : ForgeRegistries.ENTITY_TYPES.getValues()) {
-                    ENTITY_SOUND_DATA.putIfAbsent(e, new EntitySoundData(defaultSong, Integer.MIN_VALUE));
-                }
+                final SoundEvent ds = defaultSong;
+                BuiltInRegistries.ENTITY_TYPE.stream().forEach(entityType -> {
+                    ENTITY_SOUND_DATA.putIfAbsent(entityType, new EntitySoundData(ds, Integer.MIN_VALUE));
+                });
             }
         }
         if (playing != null) {
@@ -147,7 +143,7 @@ public class BattleMusic
     public static void setVolume(float newVolume) {
         newVolume /= VOLUME_REDUCTION;
 
-        if (ModConfigs.LINKED_TO_MUSIC.get()) {
+        if (BMConfig.LINKED_TO_MUSIC.get()) {
             newVolume *= Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC);
         }
 
@@ -164,12 +160,14 @@ public class BattleMusic
         return volume;
     }
 
-    public static boolean validEntity(Mob mob, boolean toStart) {
+    public static boolean shouldPlayMusic(final Mob mob, final boolean toStart) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null || player.isDeadOrDying()) return false;
         if (mob == null || mob.isDeadOrDying()) return false;
-        if (ModList.get().isLoaded("nitrogen_internals")) {
-            if (AetherCompat.isBoss(mob) && !AetherCompat.isActiveBoss(mob)) return false;
+
+        // Allow aether to handle their own boss music
+        if (ModList.get().isLoaded("aether")) {
+            if (AetherCompat.isAetherBoss(mob)) return false;
         }
 
         if (ENTITY_SOUND_DATA.get(mob.getType()) != null
@@ -190,100 +188,6 @@ public class BattleMusic
 
     public static void reload() {
         updateEntitySoundData();
-        validEntities.clear();
-    }
-
-    @Mod.EventBusSubscriber(value = Dist.CLIENT, modid = BattleMusic.MOD_ID)
-    public static abstract class ForgeEvents
-    {
-        // Register commands
-        @SubscribeEvent
-        public static void onCommandRegister(RegisterCommandsEvent event) {
-            ModCommands.register(event.getDispatcher());
-        }
-
-        @SubscribeEvent
-        public static void onPlayerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
-            if (playing != null) {
-                playing.destroy();
-            }
-            validEntities.clear();
-        }
-
-        // Update valid entities
-        @SubscribeEvent
-        public static void onLivingTick(LivingEvent.LivingTickEvent event) {
-            LivingEntity entity = event.getEntity();
-            LocalPlayer player = Minecraft.getInstance().player;
-            if (player == null || entity.level() != player.level()) return;
-
-            if (entity instanceof Mob) {
-                if (validEntity((Mob)entity, true)) {
-                    if (!validEntities.contains(entity)) {
-                        validEntities.add((Mob)entity);
-                    }
-                }
-            }
-        }
-
-        // Update battle music
-        @SubscribeEvent
-        public static void onLevelTick(TickEvent.LevelTickEvent event) {
-            if (event.phase == TickEvent.Phase.START || event.side != LogicalSide.CLIENT) return;
-            LocalPlayer player = Minecraft.getInstance().player;
-            if (player == null) return;
-
-            EntitySoundData f_soundData = null;
-            Mob f_entity = null;
-            for (int i = 0; i < validEntities.size(); i++) {
-                Mob entity = validEntities.get(i);
-
-                // Remove and skip invalid entities
-                if (!validEntity(entity, false)) {
-                    validEntities.remove(entity);
-                    i--;
-                    continue;
-                }
-
-                EntitySoundData soundData = getEntitySoundData().get(entity.getType());
-
-                if (playing != null) {
-                    // Ensure this music has higher priority
-                    if (playing.priority >= soundData.priority) {
-                        continue;
-                    }
-                    // If the music is already playing at a lower priority, just change the priority and entity
-                    if (playing.soundEvent.getLocation().equals(soundData.soundEvent.getLocation())) {
-                        playing.priority = soundData.priority;
-                        playing.entity = entity;
-                        continue;
-                    }
-                }
-
-                // Only overwrite final variables if priority is higher and music is different
-                if (f_soundData != null) {
-                    if (f_soundData.priority >= soundData.priority) {
-                        continue;
-                    }
-                    if (f_soundData.soundEvent.getLocation().equals(soundData.soundEvent.getLocation())) {
-                        f_soundData = soundData;
-                        continue;
-                    }
-                }
-
-                f_soundData = soundData;
-                f_entity = entity;
-            }
-
-            // Play battle music
-            SoundManager sounds = Minecraft.getInstance().getSoundManager();
-            if (f_soundData != null && validEntity(f_entity, true)) {
-                if (playing != null) {
-                    playing.destroy();
-                }
-                playing = new BattleMusicInstance(f_soundData, f_entity);
-                sounds.queueTickingSound(playing);
-            }
-        }
+        QUEUED_TO_PLAY.clear();
     }
 }

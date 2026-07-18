@@ -1,5 +1,9 @@
 package com.nekotune.battlemusic;
 
+import net.neoforged.api.distmarker.OnlyIn;
+
+import java.util.List;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.resources.sounds.AbstractTickableSoundInstance;
@@ -13,36 +17,28 @@ import net.minecraft.world.entity.boss.wither.WitherBoss;
 import net.minecraft.world.entity.monster.warden.Warden;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
-import net.minecraftforge.api.distmarker.Dist;
-import net.minecraftforge.api.distmarker.OnlyIn;
-import java.util.List;
-
-import static com.nekotune.battlemusic.BattleMusic.validEntities;
+import net.neoforged.api.distmarker.Dist;
 
 @OnlyIn(Dist.CLIENT)
-public class BattleMusicInstance extends AbstractTickableSoundInstance
-{
-    // Fields
+public class BattleMusicInstance extends AbstractTickableSoundInstance {
     public Mob entity;
     public SoundEvent soundEvent;
     public int priority;
     public float fadeLength;
     public boolean fadeOut = false;
 
-    // Constructors
     public BattleMusicInstance(BattleMusic.EntitySoundData soundData, Mob entity) {
         super(soundData.soundEvent, SoundSource.MASTER, SoundInstance.createUnseededRandom());
-        this.volume = (ModConfigs.FADE_TIME.get().floatValue() == 0) ? BattleMusic.getVolume() : 0.0f;
+        this.volume = (BMConfig.FADE_TIME.get().floatValue() == 0) ? BattleMusic.getVolume() : 0.001f;
         this.looping = true;
         this.relative = true;
 
         this.soundEvent = soundData.soundEvent;
         this.priority = soundData.priority;
         this.entity = entity;
-        this.fadeLength = ModConfigs.FADE_TIME.get().floatValue();
+        this.fadeLength = BMConfig.FADE_TIME.get().floatValue();
     }
 
-    // Methods
     @Override
     public boolean canStartSilent() {
         return true;
@@ -86,7 +82,7 @@ public class BattleMusicInstance extends AbstractTickableSoundInstance
                     this.fadeLength = 0f;
                 }
             } else {
-                if (validEntities.contains(this.entity)) {
+                if (BattleMusic.QUEUED_TO_PLAY.contains(this.entity)) {
                     this.fadeOut = false;
                 } else {
                     this.volume -= (BattleMusic.getVolume()) / (this.fadeLength * 20);
@@ -96,8 +92,8 @@ public class BattleMusicInstance extends AbstractTickableSoundInstance
                 }
                 return;
             }
-        } else if (!validEntities.contains(this.entity)) {
-            this.fade(Math.max(ModConfigs.FADE_TIME.get().floatValue(), 2f));
+        } else if (!BattleMusic.QUEUED_TO_PLAY.contains(this.entity)) {
+            this.fade(Math.max(BMConfig.FADE_TIME.get().floatValue(), 2f));
         } else {
             this.volume = BattleMusic.getVolume();
         }
@@ -108,24 +104,24 @@ public class BattleMusicInstance extends AbstractTickableSoundInstance
         // Pitch up music when at low health (unless fighting the warden)
         float pitch = 1f;
         boolean belowHpThreshold;
-        if (ModConfigs.HEALTH_PITCH_PERCENT.get()) {
-            belowHpThreshold = (player.getHealth()/player.getMaxHealth())*100 <= ModConfigs.HEALTH_PITCH_THRESH.get();
+        if (BMConfig.HEALTH_PITCH_PERCENT.get()) {
+            belowHpThreshold = (player.getHealth()/player.getMaxHealth())*100 <= BMConfig.HEALTH_PITCH_THRESH.get();
         } else {
-            belowHpThreshold = player.getHealth() <= ModConfigs.HEALTH_PITCH_THRESH.get();
+            belowHpThreshold = player.getHealth() <= BMConfig.HEALTH_PITCH_THRESH.get();
         }
         if (belowHpThreshold && !(this.entity instanceof Warden)) {
-            pitch += ModConfigs.HEALTH_PITCH_AMOUNT.get();
+            pitch += BMConfig.HEALTH_PITCH_AMOUNT.get();
         }
 
         // Pitch up music during second phase of dragon and wither fights
-        if (ModConfigs.PHASE2_PITCH_AMOUNT.get() != 0) {
+        if (BMConfig.PHASE2_PITCH_AMOUNT.get() != 0) {
             if (this.entity instanceof EnderDragon) {
                 List<EndCrystal> list = this.entity.level().getEntitiesOfClass(EndCrystal.class, AABB.ofSize(new Vec3(0, 64, 0), 128, 128, 128));
                 if (list.isEmpty()) {
-                    pitch += ModConfigs.PHASE2_PITCH_AMOUNT.get();
+                    pitch += BMConfig.PHASE2_PITCH_AMOUNT.get();
                 }
             } else if (this.entity instanceof WitherBoss && ((WitherBoss) this.entity).isPowered()) {
-                pitch += ModConfigs.PHASE2_PITCH_AMOUNT.get();
+                pitch += BMConfig.PHASE2_PITCH_AMOUNT.get();
             }
         }
 
