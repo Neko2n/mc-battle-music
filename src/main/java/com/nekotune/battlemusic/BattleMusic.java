@@ -24,6 +24,7 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.targeting.TargetingConditions;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
+import net.minecraft.world.entity.monster.Enemy;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.config.ModConfig;
@@ -142,11 +143,6 @@ public class BattleMusic {
 
     public static void setVolume(float newVolume) {
         newVolume /= VOLUME_REDUCTION;
-
-        if (BMConfig.LINKED_TO_MUSIC.get()) {
-            newVolume *= Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC);
-        }
-
         if (playing != null) {
             playing.setVolume(playing.getVolume() * (newVolume / volume));
             volume = newVolume;
@@ -157,33 +153,34 @@ public class BattleMusic {
     }
 
     public static float getVolume() {
+        if (BMConfig.LINKED_TO_MUSIC.get()) {
+            return volume * Minecraft.getInstance().options.getSoundSourceVolume(SoundSource.MUSIC);
+        }
         return volume;
     }
 
-    public static boolean shouldPlayMusic(final Mob mob, final boolean toStart) {
+    public static boolean shouldPlayMusic(Mob mob, boolean toStart) {
         LocalPlayer player = Minecraft.getInstance().player;
         if (player == null || player.isDeadOrDying()) return false;
         if (mob == null || mob.isDeadOrDying()) return false;
-
-        // Allow aether to handle their own boss music
         if (ModList.get().isLoaded("aether")) {
             if (AetherCompat.isAetherBoss(mob)) return false;
         }
-
-        if (ENTITY_SOUND_DATA.get(mob.getType()) != null
-                && mob.level().dimensionType().equals(player.level().dimensionType())
-                && !mob.isSleeping() && !mob.isNoAi()
-                && !mob.isAlliedTo(player.self())
-                && !(mob instanceof NeutralMob && !mob.isAggressive())) {
-            AttributeInstance frAttribute = mob.getAttribute(Attributes.FOLLOW_RANGE);
-            double followRange = (frAttribute != null) ? frAttribute.getValue() : MAX_SONG_RANGE;
-            if (mob instanceof EnderDragon) {
-                followRange = 300; // Because the ender dragon is special
-            }
-            if (toStart && (!player.hasLineOfSight(mob) || !mob.hasLineOfSight(player))) return false;
-            return mob.canAttack(player, TargetingConditions.forCombat().range(followRange).ignoreLineOfSight().ignoreInvisibilityTesting());
+        if (ENTITY_SOUND_DATA.get(mob.getType()) == null) return false;
+        final boolean neutralOrEnemy = 
+                (mob instanceof final NeutralMob neutralMob && neutralMob.isAngryAt(player)) 
+                || (mob instanceof Enemy);
+        if (!(neutralOrEnemy)) return false;
+        if (!(mob.level().dimensionType().equals(player.level().dimensionType()))) return false;
+        if (mob.isSleeping() || mob.isNoAi()) return false;
+        if (mob.isAlliedTo(player.self())) return false;
+        AttributeInstance frAttribute = mob.getAttribute(Attributes.FOLLOW_RANGE);
+        double followRange = (frAttribute != null) ? frAttribute.getValue() : MAX_SONG_RANGE;
+        if (mob instanceof EnderDragon) {
+            followRange = 300; // Because the ender dragon is special
         }
-        return false;
+        if (toStart && (!player.hasLineOfSight(mob) || !mob.hasLineOfSight(player))) return false;
+        return mob.canAttack(player, TargetingConditions.forCombat().range(followRange).ignoreLineOfSight().ignoreInvisibilityTesting());
     }
 
     public static void reload() {

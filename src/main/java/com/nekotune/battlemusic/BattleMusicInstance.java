@@ -69,6 +69,24 @@ public class BattleMusicInstance extends AbstractTickableSoundInstance {
         }
     }
 
+    private boolean shouldFade() {
+        if (BattleMusic.QUEUED_TO_PLAY.contains(this.entity)) return false;
+        for (Mob candidate : BattleMusic.QUEUED_TO_PLAY) {
+            final var entityType = candidate.getType();
+            if (entityType == this.entity.getType()) {
+                this.entity = candidate;
+                return false;
+            }
+            final var soundData = BattleMusic.getEntitySoundData().get(entityType);
+            if (soundData.soundEvent.getLocation().compareTo(this.getLocation()) == 0
+                    && soundData.priority >= this.priority) {
+                this.entity = candidate;
+                return false;
+            }
+        };
+        return true;
+    }
+
     public void tick() {
         if (this.isStopped()) return;
         Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
@@ -82,17 +100,17 @@ public class BattleMusicInstance extends AbstractTickableSoundInstance {
                     this.fadeLength = 0f;
                 }
             } else {
-                if (BattleMusic.QUEUED_TO_PLAY.contains(this.entity)) {
-                    this.fadeOut = false;
-                } else {
+                if (shouldFade()) {
                     this.volume -= (BattleMusic.getVolume()) / (this.fadeLength * 20);
                     if (this.volume <= 0) {
                         this.destroy();
                     }
+                } else {
+                    this.fadeOut = false;
                 }
                 return;
             }
-        } else if (!BattleMusic.QUEUED_TO_PLAY.contains(this.entity)) {
+        } else if (shouldFade()) {
             this.fade(Math.max(BMConfig.FADE_TIME.get().floatValue(), 2f));
         } else {
             this.volume = BattleMusic.getVolume();
