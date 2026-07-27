@@ -154,6 +154,7 @@ dependencies {
 
     compileOnly "com.aetherteam.aether:aether:${project.aether_version}"
     compileOnly "com.aetherteam.nitrogen:nitrogen_internals:${project.nitrogen_version}"
+    compileOnly "maven.modrinth:46KJle7n:695vQRhD" // Cataclysm
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

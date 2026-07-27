@@ -1,7 +1,6 @@
 package com.nekotune.battlemusic;
 
 import net.neoforged.api.distmarker.OnlyIn;
-
 import java.util.List;
 
 import net.minecraft.client.Minecraft;
@@ -89,6 +88,8 @@ public class BattleMusicInstance extends AbstractTickableSoundInstance {
 
     public void tick() {
         if (this.isStopped()) return;
+
+        // Remove all non-battlemusic music
         Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);
 
         // Fade

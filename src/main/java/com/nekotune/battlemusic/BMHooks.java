@@ -3,6 +3,8 @@ package com.nekotune.battlemusic;
 import java.util.List;
 
 import com.nekotune.battlemusic.BattleMusic.EntitySoundData;
+import com.nekotune.battlemusic.compat.BMAetherCompat;
+import com.nekotune.battlemusic.compat.BMCataclysmCompat;
 
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
@@ -19,7 +21,7 @@ import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
 @EventBusSubscriber(value = Dist.CLIENT, modid = BattleMusic.MOD_ID)
-public class Hooks {
+public class BMHooks {
     // Register commands
     @SubscribeEvent
     public static void onCommandRegister(final RegisterClientCommandsEvent event) {
@@ -43,10 +45,10 @@ public class Hooks {
         if (player == null || living.level() != player.level())
             return;
 
-        if (living instanceof Mob) {
-            if (BattleMusic.shouldPlayMusic((Mob) living, true)) {
-                if (!BattleMusic.QUEUED_TO_PLAY.contains(living)) {
-                    BattleMusic.QUEUED_TO_PLAY.add((Mob) living);
+        if (living instanceof final Mob mob) {
+            if (BattleMusic.shouldPlayMusic(mob, true)) {
+                if (!BattleMusic.QUEUED_TO_PLAY.contains(mob)) {
+                    BattleMusic.QUEUED_TO_PLAY.add(mob);
                 }
             }
         }
@@ -103,11 +105,18 @@ public class Hooks {
         // Play battle music
         final SoundManager sounds = Minecraft.getInstance().getSoundManager();
         if (soundData != null && BattleMusic.shouldPlayMusic(entity, true)) {
-            if (BattleMusic.playing != null) {
-                BattleMusic.playing.destroy();
+            
+            // Handle mod overrides
+            boolean hasExistingMusic = BMAetherCompat.hasExistingMusic(entity)
+                    || BMCataclysmCompat.hasExistingMusic(entity);
+
+            if (!hasExistingMusic) {
+                if (BattleMusic.playing != null) {
+                    BattleMusic.playing.destroy();
+                }
+                BattleMusic.playing = new BattleMusicInstance(soundData, entity);
+                sounds.queueTickingSound(BattleMusic.playing);
             }
-            BattleMusic.playing = new BattleMusicInstance(soundData, entity);
-            sounds.queueTickingSound(BattleMusic.playing);
         }
     }
 }
