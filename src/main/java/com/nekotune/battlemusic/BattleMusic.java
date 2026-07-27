@@ -50,7 +50,7 @@ public class BattleMusic {
         BMSounds.register(modEventBus);
 
         // Register our mod's BMConfigpec so that FML can create and load the config file for us
-        modContainer.registerConfig(ModConfig.Type.COMMON, BMConfig.SPEC);
+        modContainer.registerConfig(ModConfig.Type.CLIENT, BMConfig.SPEC);
     }
 
     private void onClientSetup(FMLClientSetupEvent event) {
