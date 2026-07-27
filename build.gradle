@@ -114,6 +114,19 @@ minecraft {
 sourceSets.main.resources { srcDir 'src/generated/resources' }
 
 repositories {
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        forRepositories(fg.repository) // Uncomment when using ForgeGradle
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+
     def aetherRepo = maven githubPackage.invoke("The-Aether-Team/The-Aether")
     aetherRepo.content { includeGroup 'com.aetherteam.aether' }
     aetherRepo.authentication { basic(BasicAuthentication) }
@@ -127,6 +140,7 @@ dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
     compileOnly fg.deobf("com.aetherteam.aether:aether:${aether_version}")
     compileOnly fg.deobf("com.aetherteam.nitrogen:nitrogen_internals:${nitrogen_version}")
+    compileOnly fg.deobf("maven.modrinth:46KJle7n:C3H0azzB") // Cataclysm
 }
 
 // This block of code expands all declared replace properties in the specified resource targets.

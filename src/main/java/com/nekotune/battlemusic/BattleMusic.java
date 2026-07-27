@@ -2,7 +2,8 @@ package com.nekotune.battlemusic;
 
 import com.mojang.logging.LogUtils;
 import com.mojang.serialization.DataResult;
-import com.nekotune.battlemusic.compat.AetherCompat;
+import com.nekotune.battlemusic.compat.BMCataclysmCompat;
+
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.sounds.SoundManager;
@@ -14,16 +15,15 @@ import net.minecraft.world.entity.ai.attributes.AttributeInstance;
 import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.targeting.TargetingConditions;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
-import net.minecraft.world.entity.monster.Enemy;
 import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
+import net.minecraftforge.event.TickEvent.LevelTickEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
-import net.minecraftforge.fml.LogicalSide;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
 import net.minecraftforge.fml.common.Mod;
@@ -38,10 +38,10 @@ import java.util.List;
 import java.util.Set;
 
 @Mod(BattleMusic.MOD_ID)
-public class BattleMusic
-{
+public class BattleMusic {
     public static final String MOD_ID = "battlemusic";
     public static final Logger LOGGER = LogUtils.getLogger();
+    public static final String CONFIG_FILE = MOD_ID + ".toml";
     public static final float VOLUME_REDUCTION = 2f;
     public static final double MAX_SONG_RANGE = 256D;
     public static BattleMusicInstance playing = null;
@@ -54,7 +54,8 @@ public class BattleMusic
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
         ModSounds.register(modEventBus);
 
-        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, ModConfigs.SPEC, MOD_ID + "-client.toml");
+        ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT,
+                ModConfigs.SPEC, CONFIG_FILE);
 
         MinecraftForge.EVENT_BUS.register(this);
     }
@@ -74,7 +75,9 @@ public class BattleMusic
             this.priority = priority;
         }
     }
+
     private static final HashMap<EntityType<?>, EntitySoundData> ENTITY_SOUND_DATA = new HashMap<>();
+
     public static void updateEntitySoundData() {
         ENTITY_SOUND_DATA.clear();
         List<? extends String> entityDataStrings = ModConfigs.ENTITIES_SONGS.get();
@@ -85,35 +88,41 @@ public class BattleMusic
 
             String entityString = entityDataString.substring(0, entityDataString.indexOf(';'));
             DataResult<ResourceLocation> weakEntityResource = ResourceLocation.read(entityString);
-            if (weakEntityResource.get().left().isPresent()) {
+            if (weakEntityResource.result().isPresent()) {
                 ResourceLocation resource = weakEntityResource.get().left().get();
                 entityType = ForgeRegistries.ENTITY_TYPES.getValue(resource);
             }
             if (entityType == null || entityType == EntityType.PIG) {
-                LOGGER.warn(ERROR_MSG + "Skipping invalid entity ID \"{}\" (You can ignore this warning)", entityString);
+                LOGGER.warn(ERROR_MSG + "Skipping invalid entity ID \"{}\" (You can ignore this warning)",
+                        entityString);
                 continue;
             }
 
-            String soundString = entityDataString.substring(entityDataString.indexOf(';') + 1, entityDataString.lastIndexOf(';'));
+            String soundString = entityDataString.substring(entityDataString.indexOf(';') + 1,
+                    entityDataString.lastIndexOf(';'));
             DataResult<ResourceLocation> weakSoundResource = ResourceLocation.read(soundString);
-            if (weakSoundResource.get().left().isPresent()) {
+            if (weakSoundResource.result().isPresent()) {
                 ResourceLocation resource = weakSoundResource.get().left().get();
                 soundEvent = ForgeRegistries.SOUND_EVENTS.getValue(resource);
             }
             if (soundEvent == null) {
-                LOGGER.error(ERROR_MSG + "Invalid sound ID \"{}\" in line \"{}\", skipping", soundString, entityDataString);
+                LOGGER.error(ERROR_MSG + "Invalid sound ID \"{}\" in line \"{}\", skipping", soundString,
+                        entityDataString);
                 continue;
             }
 
             int priority = 0;
-            String priorityString = entityDataString.substring(entityDataString.lastIndexOf(';') + 1, entityDataString.lastIndexOf(';') + 2);
+            String priorityString = entityDataString.substring(entityDataString.lastIndexOf(';') + 1,
+                    entityDataString.lastIndexOf(';') + 2);
             try {
                 priority = Integer.parseInt(priorityString);
-            } catch(Exception e) {
-                LOGGER.error(ERROR_MSG + "Invalid priority \"{}\" in line \"{}\", defaulting to 0", priorityString, entityDataString);
+            } catch (Exception e) {
+                LOGGER.error(ERROR_MSG + "Invalid priority \"{}\" in line \"{}\", defaulting to 0", priorityString,
+                        entityDataString);
             }
 
-            LOGGER.debug("Added battle music {} to {} with priority {}", soundEvent.getLocation(), entityType, priority);
+            LOGGER.debug("Added battle music {} to {} with priority {}", soundEvent.getLocation(), entityType,
+                    priority);
             ENTITY_SOUND_DATA.put(entityType, new EntitySoundData(soundEvent, priority));
         }
 
@@ -121,23 +130,28 @@ public class BattleMusic
         if (!defaultSongString.isEmpty()) {
             SoundEvent defaultSong = null;
             DataResult<ResourceLocation> weakDefaultSongResource = ResourceLocation.read(defaultSongString);
-            if (weakDefaultSongResource.get().left().isPresent()) {
+            if (weakDefaultSongResource.result().isPresent()) {
                 ResourceLocation resource = weakDefaultSongResource.get().left().get();
                 defaultSong = ForgeRegistries.SOUND_EVENTS.getValue(resource);
             }
             if (defaultSong == null) {
                 LOGGER.error(ERROR_MSG + "Invalid default song sound ID \"{}\"", defaultSongString);
             } else {
-                for (EntityType<?> e : ForgeRegistries.ENTITY_TYPES.getValues()) {
-                    ENTITY_SOUND_DATA.putIfAbsent(e, new EntitySoundData(defaultSong, Integer.MIN_VALUE));
-                }
+                final SoundEvent ds = defaultSong;
+                ForgeRegistries.ENTITY_TYPES.forEach((final EntityType<?> entityType) -> {
+                    if (entityType.getCategory() != MobCategory.MONSTER)
+                        return;
+                    ENTITY_SOUND_DATA.putIfAbsent(entityType, new EntitySoundData(ds, Integer.MIN_VALUE));
+                });
             }
         }
+
         if (playing != null) {
             playing.destroy();
         }
         LOGGER.debug("[BATTLE MUSIC] Updated entity sound data");
     }
+
     public static HashMap<EntityType<?>, EntitySoundData> getEntitySoundData() {
         HashMap<EntityType<?>, EntitySoundData> clone = new HashMap<>();
         for (EntityType<?> key : ENTITY_SOUND_DATA.keySet()) {
@@ -157,28 +171,37 @@ public class BattleMusic
         return volume;
     }
 
-    public static boolean validEntity(Mob mob, boolean toStart) {
+    public static boolean shouldPlayMusic(Mob mob, boolean toStart) {
         LocalPlayer player = Minecraft.getInstance().player;
-        if (player == null || player.isDeadOrDying()) return false;
-        if (mob == null || mob.isDeadOrDying()) return false;
-        if (ModList.get().isLoaded("aether")) {
-            if (AetherCompat.isBoss(mob)) return false;
+        if (player == null || player.isDeadOrDying())
+            return false;
+        if (mob == null)
+            return false;
+        if (ENTITY_SOUND_DATA.get(mob.getType()) == null)
+            return false;
+        if (ModList.get().isLoaded("cataclysm")) {
+            if (!BMCataclysmCompat.validate(mob))
+                return false;
         }
-        if (ENTITY_SOUND_DATA.get(mob.getType()) == null) return false;
-        final boolean neutralOrEnemy = 
-                (mob instanceof final NeutralMob neutralMob && neutralMob.isAngryAt(player)) 
-                || (mob instanceof Enemy);
-        if (!(neutralOrEnemy)) return false;
-        if (!(mob.level().dimensionType().equals(player.level().dimensionType()))) return false;
-        if (mob.isSleeping() || mob.isNoAi()) return false;
-        if (mob.isAlliedTo(player.self())) return false;
+        if (mob instanceof final NeutralMob neutralMob
+                && !neutralMob.isAngryAt(player))
+            return false;
+        if (mob.isDeadOrDying()
+                || mob.isNoAi()
+                || mob.isSilent()
+                || !(mob.level().dimensionType().equals(player.level().dimensionType()))
+                || mob.isSleeping()
+                || mob.isAlliedTo(player.self()))
+            return false;
         AttributeInstance frAttribute = mob.getAttribute(Attributes.FOLLOW_RANGE);
         double followRange = (frAttribute != null) ? frAttribute.getValue() : MAX_SONG_RANGE;
         if (mob instanceof EnderDragon) {
             followRange = 300; // Because the ender dragon is special
         }
-        if (toStart && (!player.hasLineOfSight(mob) || !mob.hasLineOfSight(player))) return false;
-        return mob.canAttack(player, TargetingConditions.forCombat().range(followRange).ignoreLineOfSight().ignoreInvisibilityTesting());
+        if (toStart && (!player.hasLineOfSight(mob) || !mob.hasLineOfSight(player)))
+            return false;
+        return mob.canAttack(player,
+                TargetingConditions.forCombat().range(followRange).ignoreLineOfSight().ignoreInvisibilityTesting());
     }
 
     public static void reload() {
@@ -187,8 +210,7 @@ public class BattleMusic
     }
 
     @Mod.EventBusSubscriber(value = Dist.CLIENT, modid = BattleMusic.MOD_ID)
-    public static abstract class ForgeEvents
-    {
+    public static abstract class ForgeEvents {
         // Register commands
         @SubscribeEvent
         public static void onCommandRegister(RegisterClientCommandsEvent event) {
@@ -208,12 +230,13 @@ public class BattleMusic
         public static void onLivingTick(LivingEvent.LivingTickEvent event) {
             LivingEntity entity = event.getEntity();
             LocalPlayer player = Minecraft.getInstance().player;
-            if (player == null || entity.level() != player.level()) return;
+            if (player == null || entity.level() != player.level())
+                return;
 
             if (entity instanceof Mob) {
-                if (validEntity((Mob)entity, true)) {
+                if (shouldPlayMusic((Mob) entity, true)) {
                     if (!QUEUED_ENTITIES.contains(entity)) {
-                        QUEUED_ENTITIES.add((Mob)entity);
+                        QUEUED_ENTITIES.add((Mob) entity);
                     }
                 }
             }
@@ -221,59 +244,68 @@ public class BattleMusic
 
         // Update battle music
         @SubscribeEvent
-        public static void onLevelTick(TickEvent.LevelTickEvent event) {
-            if (event.phase == TickEvent.Phase.START || event.side != LogicalSide.CLIENT) return;
-            LocalPlayer player = Minecraft.getInstance().player;
-            if (player == null) return;
+        public static void onLevelTick(final LevelTickEvent event) {
+            if (event.phase != TickEvent.Phase.END)
+                return;
+            final LocalPlayer player = Minecraft.getInstance().player;
+            if (player == null)
+                return;
 
-            EntitySoundData f_soundData = null;
-            Mob f_entity = null;
-            for (Mob entity : List.copyOf(QUEUED_ENTITIES)) {
+            EntitySoundData soundData = null;
+            Mob entity = null;
+            for (final Mob e : List.copyOf(QUEUED_ENTITIES)) {
 
                 // Remove and skip invalid entities
-                if (!validEntity(entity, false)) {
-                    QUEUED_ENTITIES.remove(entity);
+                if (!BattleMusic.shouldPlayMusic(e, false)) {
+                    QUEUED_ENTITIES.remove(e);
                     continue;
                 }
 
-                EntitySoundData soundData = getEntitySoundData().get(entity.getType());
+                final EntitySoundData sd = BattleMusic.getEntitySoundData().get(e.getType());
 
-                if (playing != null) {
+                if (BattleMusic.playing != null) {
                     // Ensure this music has higher priority
-                    if (playing.priority >= soundData.priority) {
+                    if (BattleMusic.playing.priority >= sd.priority) {
                         continue;
                     }
-                    // If the music is already playing at a lower priority, just change the priority and entity
-                    if (playing.soundEvent.getLocation().equals(soundData.soundEvent.getLocation())) {
-                        playing.priority = soundData.priority;
-                        playing.entity = entity;
-                        continue;
-                    }
-                }
-
-                // Only overwrite final variables if priority is higher and music is different
-                if (f_soundData != null) {
-                    if (f_soundData.priority >= soundData.priority) {
-                        continue;
-                    }
-                    if (f_soundData.soundEvent.getLocation().equals(soundData.soundEvent.getLocation())) {
-                        f_soundData = soundData;
+                    // If the music is already playing at a lower priority, just change the priority
+                    // and entity
+                    if (BattleMusic.playing.soundEvent.getLocation().equals(sd.soundEvent.getLocation())) {
+                        BattleMusic.playing.priority = sd.priority;
+                        BattleMusic.playing.entity = e;
                         continue;
                     }
                 }
 
-                f_soundData = soundData;
-                f_entity = entity;
+                // Only overwrite if priority is higher and music is different
+                if (soundData != null) {
+                    if (soundData.priority >= sd.priority) {
+                        continue;
+                    }
+                    if (soundData.soundEvent.getLocation().equals(sd.soundEvent.getLocation())) {
+                        soundData = sd;
+                        continue;
+                    }
+                }
+
+                soundData = sd;
+                entity = e;
             }
 
             // Play battle music
-            SoundManager sounds = Minecraft.getInstance().getSoundManager();
-            if (f_soundData != null && validEntity(f_entity, true)) {
-                if (playing != null) {
-                    playing.destroy();
+            final SoundManager sounds = Minecraft.getInstance().getSoundManager();
+            if (soundData != null && BattleMusic.shouldPlayMusic(entity, true)) {
+
+                // Handle mod overrides
+                boolean hasExistingMusic = BMCataclysmCompat.hasExistingMusic(entity);
+
+                if (!hasExistingMusic) {
+                    if (BattleMusic.playing != null) {
+                        BattleMusic.playing.destroy();
+                    }
+                    BattleMusic.playing = new BattleMusicInstance(soundData, entity);
+                    sounds.queueTickingSound(BattleMusic.playing);
                 }
-                playing = new BattleMusicInstance(f_soundData, f_entity);
-                sounds.queueTickingSound(playing);
             }
         }
     }
