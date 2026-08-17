@@ -22,6 +22,7 @@ import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.TickEvent.LevelTickEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
+import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.ModList;
@@ -184,7 +185,7 @@ public class BattleMusic {
                 return false;
         }
         if (mob instanceof final NeutralMob neutralMob
-                && !neutralMob.isAngryAt(player))
+                && !neutralMob.isAngry())
             return false;
         if (mob.isDeadOrDying()
                 || mob.isNoAi()
@@ -251,6 +252,12 @@ public class BattleMusic {
             if (player == null)
                 return;
 
+            // Clear stale instances
+            if (BattleMusic.playing != null &&
+                    !Minecraft.getInstance().getSoundManager().isActive(BattleMusic.playing)) {
+                BattleMusic.playing.destroy();
+            }
+
             EntitySoundData soundData = null;
             Mob entity = null;
             for (final Mob e : List.copyOf(QUEUED_ENTITIES)) {
@@ -307,6 +314,13 @@ public class BattleMusic {
                     sounds.queueTickingSound(BattleMusic.playing);
                 }
             }
+        }
+
+        // Clear battle music after leaving the game
+        @SubscribeEvent
+        public static void onLevelUnload(final LevelEvent.Unload event) {
+            if (BattleMusic.playing != null)
+                BattleMusic.playing.destroy();
         }
     }
 }
