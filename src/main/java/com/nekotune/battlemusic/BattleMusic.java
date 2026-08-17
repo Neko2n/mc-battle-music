@@ -118,20 +118,21 @@ public class BattleMusic {
 
         String defaultSongString = BMConfig.DEFAULT_SONG.get();
         if (!defaultSongString.isEmpty()) {
-            SoundEvent defaultSong = null;
+            final SoundEvent defaultSong;
             DataResult<ResourceLocation> weakDefaultSongResource = ResourceLocation.read(defaultSongString);
             if (weakDefaultSongResource.result().isPresent()) {
                 ResourceLocation resource = weakDefaultSongResource.getOrThrow();
                 defaultSong = BuiltInRegistries.SOUND_EVENT.get(resource);
+            } else {
+                defaultSong = null;
             }
             if (defaultSong == null) {
                 LOGGER.error(ERROR_MSG + "Invalid default song sound ID \"{}\"", defaultSongString);
             } else {
-                final SoundEvent ds = defaultSong;
                 BuiltInRegistries.ENTITY_TYPE.stream().forEach((final EntityType<?> entityType) -> {
                     if (entityType.getCategory() != MobCategory.MONSTER)
                         return;
-                    ENTITY_SOUND_DATA.putIfAbsent(entityType, new EntitySoundData(ds, Integer.MIN_VALUE));
+                    ENTITY_SOUND_DATA.putIfAbsent(entityType, new EntitySoundData(defaultSong, Integer.MIN_VALUE));
                 });
             }
         }
@@ -182,8 +183,9 @@ public class BattleMusic {
                 return false;
         }
         if (mob instanceof final NeutralMob neutralMob
-                && !neutralMob.isAngryAt(player))
+                && !neutralMob.isAngry()) {
             return false;
+        }
         if (mob.isDeadOrDying()
                 || mob.isNoAi()
                 || mob.isSilent()

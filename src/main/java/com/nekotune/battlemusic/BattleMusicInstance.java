@@ -87,7 +87,8 @@ public class BattleMusicInstance extends AbstractTickableSoundInstance {
     }
 
     public void tick() {
-        if (this.isStopped()) return;
+        if (this.isStopped())
+            return;
 
         // Remove all non-battlemusic music
         Minecraft.getInstance().getSoundManager().stop(null, SoundSource.MUSIC);

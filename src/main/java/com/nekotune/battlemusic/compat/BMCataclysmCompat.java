@@ -20,6 +20,7 @@ public class BMCataclysmCompat {
         }
         return true;
     }
+
     public static boolean hasExistingMusic(final Mob mob) {
         if (!ModList.get().isLoaded("cataclysm"))
             return false;

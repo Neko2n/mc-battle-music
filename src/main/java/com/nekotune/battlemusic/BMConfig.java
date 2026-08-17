@@ -4,7 +4,6 @@ import java.util.List;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 public class BMConfig {
-    private static final ModConfigSpec.Builder BUILDER = new ModConfigSpec.Builder();
     public static final ModConfigSpec SPEC;
 
     public static final ModConfigSpec.ConfigValue<Double> VOLUME;
@@ -18,34 +17,35 @@ public class BMConfig {
     public static final ModConfigSpec.ConfigValue<String> DEFAULT_SONG;
 
     static {
-        BUILDER.push(BattleMusic.MOD_ID + " configs");
+        final ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
+        builder.push(BattleMusic.MOD_ID + " configs");
 
-        VOLUME = BUILDER.comment("Volume of battle music, set to zero to mute")
+        VOLUME = builder.comment("Volume of battle music, set to zero to mute")
                 .defineInRange("volume", 1D, 0D, 5D);
-        LINKED_TO_MUSIC = BUILDER.comment("\nWhether battle music's volume is affected by the music slider")
+        LINKED_TO_MUSIC = builder.comment("\nWhether battle music's volume is affected by the music slider")
                 .define("linked_to_music_volume", true);
-        HEALTH_PITCH_AMOUNT = BUILDER.comment("""
+        HEALTH_PITCH_AMOUNT = builder.comment("""
 
                 How much the battle music changes in pitch when at low health   \s
                     > Values below zero shift the pitch down, above zero shift the pitch up   \s
                     > Set to zero to disable  \s""")
                 .defineInRange("health_pitch_amount", 0.05D, -0.5D, 1D);
-        PHASE2_PITCH_AMOUNT = BUILDER.comment("""
+        PHASE2_PITCH_AMOUNT = builder.comment("""
 
                                 How much the battle music changes in pitch during the second phases of the Ender Dragon and Wither fights   \s
                                     > Values below zero shift the pitch down, above zero shift the pitch up \s
                                     > Set to zero to disable    \s""")
                 .defineInRange("phase2_pitch_amount", 0.05D, -0.5D, 1D);
-        HEALTH_PITCH_THRESH = BUILDER.comment("\nAt what HP should the battle music shift in pitch")
+        HEALTH_PITCH_THRESH = builder.comment("\nAt what HP should the battle music shift in pitch")
                 .defineInRange("health_pitch_thresh", 6, 1, Integer.MAX_VALUE);
-        HEALTH_PITCH_PERCENT = BUILDER.comment("""
+        HEALTH_PITCH_PERCENT = builder.comment("""
 
                 Is the health threshold a percentage value?   \s
                     > If it is, the above value must be between 1 and 100   \s""")
                 .define("health_pitch_percent", false);
-        FADE_TIME = BUILDER.comment("\nHow many seconds songs take to fade in and out")
+        FADE_TIME = builder.comment("\nHow many seconds songs take to fade in and out")
                 .defineInRange("fade_time", 1D, 0D, 10D);
-        ENTITIES_SONGS = BUILDER.comment("""
+        ENTITIES_SONGS = builder.comment("""
 
                     Entites and their respective songs, write in entity;song;priority format      \s
                         > entity = the entity's ID, eg. "minecraft:pig"      \s
@@ -113,13 +113,13 @@ public class BMConfig {
                         () -> "",
                         a -> true);
 
-        DEFAULT_SONG = BUILDER.comment("""
+        DEFAULT_SONG = builder.comment("""
 
                 A generic battle song to play for any other undefined hostile entity     \s
                     > Leave blank for no default battle music      \s""")
                 .define("default_song", "");
 
-        BUILDER.pop();
-        SPEC = BUILDER.build();
+        builder.pop();
+        SPEC = builder.build();
     }
 }

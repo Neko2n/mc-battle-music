@@ -17,6 +17,7 @@ import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
 
@@ -60,6 +61,12 @@ public class BMHooks {
         final LocalPlayer player = Minecraft.getInstance().player;
         if (player == null)
             return;
+
+        // Clear stale instances
+        if (BattleMusic.playing != null &&
+                !Minecraft.getInstance().getSoundManager().isActive(BattleMusic.playing)) {
+            BattleMusic.playing.destroy();
+        }
         
         EntitySoundData soundData = null;
         Mob entity = null;
@@ -74,6 +81,7 @@ public class BMHooks {
             final EntitySoundData sd = BattleMusic.getEntitySoundData().get(e.getType());
 
             if (BattleMusic.playing != null) {
+
                 // Ensure this music has higher priority
                 if (BattleMusic.playing.priority >= sd.priority) {
                     continue;
@@ -118,5 +126,12 @@ public class BMHooks {
                 sounds.queueTickingSound(BattleMusic.playing);
             }
         }
+    }
+
+    // Clear battle music after leaving the game
+    @SubscribeEvent
+    public static void onLevelUnload(final LevelEvent.Unload event) {
+        if (BattleMusic.playing != null)
+            BattleMusic.playing.destroy();
     }
 }
