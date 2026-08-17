@@ -126,20 +126,10 @@ repositories {
             includeGroup "maven.modrinth"
         }
     }
-
-    def aetherRepo = maven githubPackage.invoke("The-Aether-Team/The-Aether")
-    aetherRepo.content { includeGroup 'com.aetherteam.aether' }
-    aetherRepo.authentication { basic(BasicAuthentication) }
-
-    def nitrogenRepo = maven githubPackage.invoke("The-Aether-Team/Nitrogen")
-    nitrogenRepo.content { includeGroup 'com.aetherteam.nitrogen' }
-    nitrogenRepo.authentication { basic(BasicAuthentication) }
 }
 
 dependencies {
     minecraft "net.minecraftforge:forge:${minecraft_version}-${forge_version}"
-    compileOnly fg.deobf("com.aetherteam.aether:aether:${aether_version}")
-    compileOnly fg.deobf("com.aetherteam.nitrogen:nitrogen_internals:${nitrogen_version}")
     compileOnly fg.deobf("maven.modrinth:46KJle7n:C3H0azzB") // Cataclysm
 }
 
