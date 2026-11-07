@@ -16,7 +16,7 @@ import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.client.event.RegisterClientCommandsEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
+import net.neoforged.neoforge.client.event.ClientPlayerNetworkEvent;
 import net.neoforged.neoforge.event.level.LevelEvent;
 import net.neoforged.neoforge.event.tick.EntityTickEvent;
 import net.neoforged.neoforge.event.tick.LevelTickEvent;
@@ -30,7 +30,7 @@ public class BMHooks {
     }
 
     @SubscribeEvent
-    public static void onPlayerChangedDimension(final PlayerEvent.PlayerChangedDimensionEvent event) {
+    public static void onPlayerClone(final ClientPlayerNetworkEvent.Clone event) {
         if (BattleMusic.playing != null) {
             BattleMusic.playing.destroy();
         }
@@ -58,6 +58,8 @@ public class BMHooks {
     // Update battle music
     @SubscribeEvent
     public static void onLevelTick(final LevelTickEvent.Post event) {
+        if (!event.getLevel().isClientSide())
+            return;
         final LocalPlayer player = Minecraft.getInstance().player;
         if (player == null)
             return;
@@ -131,6 +133,8 @@ public class BMHooks {
     // Clear battle music after leaving the game
     @SubscribeEvent
     public static void onLevelUnload(final LevelEvent.Unload event) {
+        if (!event.getLevel().isClientSide())
+            return;
         if (BattleMusic.playing != null)
             BattleMusic.playing.destroy();
     }
