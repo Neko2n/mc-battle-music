@@ -16,12 +16,12 @@ import net.minecraft.world.entity.ai.attributes.Attributes;
 import net.minecraft.world.entity.ai.targeting.TargetingConditions;
 import net.minecraft.world.entity.boss.enderdragon.EnderDragon;
 import net.minecraftforge.api.distmarker.Dist;
+import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.client.event.RegisterClientCommandsEvent;
 import net.minecraftforge.common.MinecraftForge;
 import net.minecraftforge.event.TickEvent;
 import net.minecraftforge.event.TickEvent.LevelTickEvent;
 import net.minecraftforge.event.entity.living.LivingEvent;
-import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.eventbus.api.SubscribeEvent;
@@ -219,7 +219,7 @@ public class BattleMusic {
         }
 
         @SubscribeEvent
-        public static void onPlayerChangedDimension(PlayerEvent.PlayerChangedDimensionEvent event) {
+        public static void onPlayerClone(ClientPlayerNetworkEvent.Clone event) {
             if (playing != null) {
                 playing.destroy();
             }
@@ -246,7 +246,7 @@ public class BattleMusic {
         // Update battle music
         @SubscribeEvent
         public static void onLevelTick(final LevelTickEvent event) {
-            if (event.phase != TickEvent.Phase.END)
+            if (event.phase != TickEvent.Phase.END || !event.level.isClientSide())
                 return;
             final LocalPlayer player = Minecraft.getInstance().player;
             if (player == null)
@@ -319,6 +319,8 @@ public class BattleMusic {
         // Clear battle music after leaving the game
         @SubscribeEvent
         public static void onLevelUnload(final LevelEvent.Unload event) {
+            if (!event.getLevel().isClientSide())
+                return;
             if (BattleMusic.playing != null)
                 BattleMusic.playing.destroy();
         }
